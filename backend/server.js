@@ -234,41 +234,44 @@ awsClient.on('message', async (topic, message) => {
       try {
         const dataPoint = new db_sensors({ client_id, analog_value, timestamp });
         await dataPoint.save();  
-        
       } catch (error) {
-        console.log('Error al guardar datos del sensor en DB: ', error)
+        console.log('Error al guardar datos del sensor en DB: ', error);
       }
 
       // Hacer la predicción con Python
       try {
-        const response = await axios.post("http://model:5000/predict", {
-          features: [timestamp.getTime(), analog_value]
+        const payload = [
+          {
+            timestamp: timestamp.getTime(),
+            analog_value
+          }
+        ];
+
+        const response = await axios.post("http://localhost:5000/predict", payload, {
+          headers: { 'Content-Type': 'application/json' }
         });
-      
+
         let predict = response.data.prediction[0];
-      
+
         const labels = {
           0: 'luz solar intensa',
           1: 'reflejos de sol y sombra',
           2: 'oscuridad',
           3: 'sombra'
         };
-      
+
         predict = labels[predict] || 'desconocido';
-      
+
         // Enviar datos a través del WebSocket con la predicción
         wss.clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({ client_id, analog_value, timestamp, predict }));
           }
         });
-      
+
       } catch (err) {
         console.error("❌ Error al obtener predicción del microservicio Python:", err.message);
       }
-      
-      
-
     }
 
   } catch (err) {
