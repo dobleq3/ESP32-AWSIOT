@@ -6,6 +6,7 @@ const WebSocket = require('ws');
 const mqtt = require('mqtt');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const axios = require("axios");
 require('dotenv').config();
 require('./connectDB');
 
@@ -230,79 +231,46 @@ awsClient.on('message', async (topic, message) => {
       const timestamp = new Date();
 
       // Guardar datos en MongoDB
-      const dataPoint = new db_sensors({ client_id, analog_value, timestamp });
-      await dataPoint.save();
+      try {
+        const dataPoint = new db_sensors({ client_id, analog_value, timestamp });
+        await dataPoint.save();  
+        
+      } catch (error) {
+        console.log('Error al guardar datos del sensor en DB: ', error)
+      }
 
       // Hacer la predicción con Python
-      const pythonProcess = spawn("python", ["predict.py"]);
-
-      let result = "";
-      let errorResult = "";
-
-      const dataString = JSON.stringify(
-        [{
-         timestamp: timestamp.getTime(), 
-         analog_value 
-        }
-      ]);
-
-      pythonProcess.stdin.write(dataString);
-      pythonProcess.stdin.end();
-
-      pythonProcess.stdout.on("data", (data) => {
-        result += data.toString();
-      });
-
-      pythonProcess.stderr.on("data", (data) => {
-        errorResult += data.toString();
-      });
-
-      pythonProcess.on("close", (code) => {
-        if (errorResult) {
-          console.error("❌ Error en Python:", errorResult);
-          return;
-        }
-
-        if (!result) {
-          console.error("❌ Python no devolvió datos");
-          return;
-        }
-
-        try {
-          const prediction = JSON.parse(result);
-          //console.log("✅ Predicción recibida:", prediction);
-
-          let predict = prediction.prediction[0]
-
-          if (predict === 0) { 
-            predict = 'luz solar intensa'
+      try {
+        const response = await axios.post("http://model:5000/predict", {
+          features: [timestamp.getTime(), analog_value]
+        });
+      
+        let predict = response.data.prediction[0];
+      
+        const labels = {
+          0: 'luz solar intensa',
+          1: 'reflejos de sol y sombra',
+          2: 'oscuridad',
+          3: 'sombra'
+        };
+      
+        predict = labels[predict] || 'desconocido';
+      
+        // Enviar datos a través del WebSocket con la predicción
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ client_id, analog_value, timestamp, predict }));
           }
+        });
+      
+      } catch (err) {
+        console.error("❌ Error al obtener predicción del microservicio Python:", err.message);
+      }
+      
+      
 
-          if (predict === 1) { 
-            predict = 'reflejos de sol y sombra'
-          }
-
-          if (predict === 2) { 
-            predict = 'oscuridad'
-          }
-
-          if (predict === 3) { 
-              predict = 'sombra'
-          }
-
-          // Enviar datos a través del WebSocket con la predicción
-          wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({ client_id, analog_value, timestamp, predict }));
-              //console.log(analog_value)
-            }
-          });
-
-        } catch (error) {
-          console.error("❌ Error al parsear JSON:", error);
-        }
-      });
     }
+
   } catch (err) {
     console.error('Error al procesar el mensaje MQTT:', err);
   }
