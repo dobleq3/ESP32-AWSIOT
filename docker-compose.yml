@@ -4,12 +4,12 @@ services:
   backend:
     build: ./backend
     ports:
-      - "3000:3000"
+      - "3200:3200"
     depends_on:
       - mongo
       - model
     environment:
-      - MONGO_URI=mongodb://mongo:27017/dev
+      - MONGODB_URI=mongodb://mongo_user:dobleq3@mongo:27017/dev?authSource=admin
       - MODEL_SERVICE_URL=http://model:5000
 
   model:
@@ -21,8 +21,12 @@ services:
     image: mongo:6
     ports:
       - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongo_user
+      - MONGO_INITDB_ROOT_PASSWORD=dobleq3
     volumes:
       - mongo-data:/data/db
+
 
 volumes:
   mongo-data:

@@ -4,7 +4,7 @@ FROM python:3.11
 WORKDIR /app
 
 # Copiar archivos y requisitos
-COPY model.pkl .
+COPY modelo.pkl .
 COPY predict.py .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
