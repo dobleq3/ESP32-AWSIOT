@@ -247,7 +247,7 @@ awsClient.on('message', async (topic, message) => {
           }
         ];
 
-        const response = await axios.post("http://localhost:5000/predict", payload, {
+        const response = await axios.post("http://model:5000/predict", payload, {
           headers: { 'Content-Type': 'application/json' }
         });
 
